@@ -1,11 +1,19 @@
 #pragma once
 
 #include "kvstore_api.h"
+#include "skiplist.h"
 
 class KVStore : public KVStoreAPI
 {
-	// You can add your implementation here
+
 private:
+
+	std::string DFLAG = "~DELETE~";
+	SkipList* memtable;
+	std::string DIR_PATH = "/";
+	std::string PREFIX = "/";
+	std::string VLOG_PATH = "/vlog";
+
 public:
 	KVStore(const std::string &dir, const std::string &vlog);
 

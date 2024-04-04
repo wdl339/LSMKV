@@ -1,12 +1,21 @@
 #include "kvstore.h"
 #include <string>
+#include <map>
+#include "skiplist.h"
 
 KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(dir, vlog)
 {
+
+	memtable = new SkipList();
+	DIR_PATH = dir + "/";
+	PREFIX = dir + "/level";
+	VLOG_PATH = vlog;
+
 }
 
 KVStore::~KVStore()
 {
+
 }
 
 /**
@@ -15,6 +24,10 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
+	if (memtable->put(key, s)){
+
+	}
+	
 }
 /**
  * Returns the (string) value of the given key.
@@ -22,6 +35,12 @@ void KVStore::put(uint64_t key, const std::string &s)
  */
 std::string KVStore::get(uint64_t key)
 {
+	std::string value = memtable->get(key);
+	if(value == ""){
+		//search in sstables
+	} else {
+		return value;
+	}
 	return "";
 }
 /**
@@ -30,6 +49,13 @@ std::string KVStore::get(uint64_t key)
  */
 bool KVStore::del(uint64_t key)
 {
+	std::string value = memtable->get(key);
+	if(value == ""){
+		//search in sstables
+	} else {
+		memtable->del(key);
+		return true;
+	}
 	return false;
 }
 
@@ -39,6 +65,7 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
+
 }
 
 /**
@@ -48,6 +75,14 @@ void KVStore::reset()
  */
 void KVStore::scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string>> &list)
 {
+	std::map<uint64_t, std::string> res;
+	if (memtable->getMinKey() <= key2 && memtable->getMaxKey() >= key1){
+		memtable->scan(key1, key2, res);
+	}
+	//search in sstables
+	for (auto it = res.begin(); it != res.end(); it++){
+		list.push_back(std::make_pair(it->first, it->second == DFLAG ? "" : it->second));
+	}
 }
 
 /**
@@ -56,4 +91,5 @@ void KVStore::scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, s
  */
 void KVStore::gc(uint64_t chunk_size)
 {
+
 }
