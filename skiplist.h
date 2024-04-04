@@ -32,7 +32,7 @@ public:
 
 class SkipList
 {
-	std::string DFLAG = "~DELETE~";
+	std::string DFLAG = "~DELETED~";
 	int level;
 	int maxLevel;
 	Node* header;
@@ -40,7 +40,7 @@ class SkipList
 	double p;
 
 	uint64_t number;
-	int MAX_SIZE;
+	uint64_t MAX_SIZE;
 
 	int random_level();
 

@@ -15,7 +15,7 @@ KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(d
 
 KVStore::~KVStore()
 {
-
+	delete memtable;
 }
 
 /**
@@ -36,7 +36,7 @@ void KVStore::put(uint64_t key, const std::string &s)
 std::string KVStore::get(uint64_t key)
 {
 	std::string value = memtable->get(key);
-	if(value == ""){
+	if(value == DFLAG){
 		//search in sstables
 	} else {
 		return value;
@@ -50,7 +50,7 @@ std::string KVStore::get(uint64_t key)
 bool KVStore::del(uint64_t key)
 {
 	std::string value = memtable->get(key);
-	if(value == ""){
+	if(value == "" || value == DFLAG){
 		//search in sstables
 	} else {
 		memtable->del(key);
@@ -81,7 +81,10 @@ void KVStore::scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, s
 	}
 	//search in sstables
 	for (auto it = res.begin(); it != res.end(); it++){
-		list.push_back(std::make_pair(it->first, it->second == DFLAG ? "" : it->second));
+		if (it->second == DFLAG){
+			continue;
+		}
+		list.push_back(std::make_pair(it->first, it->second));
 	}
 }
 

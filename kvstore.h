@@ -8,7 +8,7 @@ class KVStore : public KVStoreAPI
 
 private:
 
-	std::string DFLAG = "~DELETE~";
+	std::string DFLAG = "~DELETED~";
 	SkipList* memtable;
 	std::string DIR_PATH = "/";
 	std::string PREFIX = "/";

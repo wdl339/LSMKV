@@ -18,7 +18,7 @@
         srand(time(NULL)); 
         p = pr;
         level = 1;
-        maxLevel = 16;
+        maxLevel = 20;
         header = new Node (maxLevel, std::numeric_limits<key_type>::min(), "");
         tailer = new Node (maxLevel, std::numeric_limits<key_type>::max(), "");
         for (int i = 0; i < maxLevel; i++){
@@ -89,7 +89,7 @@
             }
         }
         x = x->forward[0];
-        while (x->key < key2){
+        while (x->key <= key2){
             res[x->key] = x->value;
             x = x->forward[0];
         }
