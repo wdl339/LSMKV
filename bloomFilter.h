@@ -7,18 +7,13 @@ class BloomFilter
 {
 
 private:
-    bool *hashMap;
+    bool hashMap[HASH_SIZE];
 
 public:
     BloomFilter() {
-        hashMap = new bool[HASH_SIZE];
         for(int i = 0; i < HASH_SIZE; i++) {
             this->hashMap[i] = false;
         }
-    }
-
-    ~BloomFilter() {
-        delete[] hashMap;
     }
 
     void insert(uint64_t key) {
@@ -29,7 +24,7 @@ public:
         }
     }
 
-    bool query(uint64_t key) {
+    bool contains(uint64_t key) {
         uint32_t hash[HASH_NUM] = {0};
         MurmurHash3_x64_128(&key, sizeof(key), 1, hash);
         for(int i = 0; i < HASH_NUM; i++) {

@@ -2,20 +2,25 @@
 #include <string>
 #include <map>
 #include "skiplist.h"
+#include "utils.h"
+#include <fstream>
+
+bool searchIndex(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos);
 
 KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(dir, vlog)
 {
 
 	memtable = new SkipList();
+	vLog = new VLog(vlog);
 	DIR_PATH = dir + "/";
-	PREFIX = dir + "/level";
-	VLOG_PATH = vlog;
+	SS_PATH = dir + "/level-";
 
 }
 
 KVStore::~KVStore()
 {
 	delete memtable;
+	delete vLog;
 }
 
 /**
@@ -24,24 +29,52 @@ KVStore::~KVStore()
  */
 void KVStore::put(uint64_t key, const std::string &s)
 {
-	if (memtable->put(key, s)){
-
+	if (!memtable->put(key, s)){
+		std::map<uint64_t, std::string> all;
+		std::map<uint64_t, uint64_t> offsets;
+		memtable->getAll(all);
+		vLog->append(all,offsets);
+		write2ss(all,offsets);
 	}
-	
 }
+
 /**
  * Returns the (string) value of the given key.
  * An empty string indicates not found.
  */
+
+// std::map<uint64_t, std::map<uint64_t, Info>> ssInfo; // level, timestamp, Info
 std::string KVStore::get(uint64_t key)
 {
-	std::string value = memtable->get(key);
-	if(value == DFLAG){
-		//search in sstables
-	} else {
-		return value;
+	std::string res = memtable->get(key);
+	if(res == ""){
+		std::string tmp = "";
+		uint64_t tmp_timestamp = 0;
+		for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
+			for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
+				auto info = it2->second;
+				if (!info.header.inArea(key) || info.header.before(tmp_timestamp)){
+					continue;
+				}
+				if (info.bloomFilter.contains(key)){
+					uint64_t pos;
+					if (searchIndex(key, info.indexes, pos)){
+						// return "bbbbbb";
+						tmp = readData(it->first, it2->first, pos);
+						if (tmp != ""){
+							res = tmp;
+							tmp_timestamp = it2->first;
+						}
+					}
+					// return "ccccc";	
+				}
+			}
+		}
 	}
-	return "";
+	if (res == DFLAG){
+		return "";
+	}
+	return res;
 }
 /**
  * Delete the given key-value pair if it exists.
@@ -96,3 +129,70 @@ void KVStore::gc(uint64_t chunk_size)
 {
 
 }
+
+void KVStore::write2ss (std::map<uint64_t, std::string> &all, 
+						std::map<uint64_t, uint64_t> &offsets){
+	if (!utils::dirExists(dirName(0))){
+		createLevel(0);
+	}
+	SSTable ss = SSTable(memtable, TIMESTAMP, all, offsets);
+	std::string path = filePath(0, TIMESTAMP);
+	ss.write2file(path);
+	ssInfo[0][TIMESTAMP] = ss.info;
+	TIMESTAMP++;
+	delete memtable;
+	memtable = new SkipList();
+}
+
+void KVStore::createLevel(uint64_t level){
+	utils::_mkdir(dirName(level));
+}
+
+bool searchIndex(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos) {
+	// 二分法查找
+	int left = 0, right = indexes.size() - 1;
+	while (left <= right) {
+		int mid = (left + right) / 2;
+		if (indexes[mid] == key) {
+			pos = mid;
+			return true;
+		} else if (indexes[mid] < key) {
+			left = mid + 1;
+		} else {
+			right = mid - 1;
+		}
+	}
+	return false;
+}
+
+std::string KVStore::readData (uint64_t level,
+                               uint64_t time_stamp,
+                               uint64_t pos) {
+    std::string file = filePath(level, time_stamp);
+    std::fstream f;
+    f.open(file, std::ios::in | std::ios::binary);
+
+    uint64_t offsetPos = pos * sizeData + sizeHeader + sizeFliter + sizeof(uint64_t);
+	f.seekg(offsetPos, std::ios::beg);
+
+    uint64_t offset;
+    f.read(reinterpret_cast<char*>(&offset), sizeof(offset));
+    uint32_t vlen;
+    f.read(reinterpret_cast<char*>(&vlen), sizeof(vlen));
+
+	// return std::to_string(offset) + " " + std::to_string(vlen);
+
+    return vLog->get(offset, vlen);
+}
+
+std::string KVStore::filePath(uint64_t level, uint64_t timestamp){
+	return SS_PATH + std::to_string(level) + "/" + std::to_string(timestamp) + ".sst";
+}
+
+std::string KVStore::dirName(uint64_t level){
+	return SS_PATH + std::to_string(level);
+}
+
+// std::string KVStore::dirPath(uint64_t level){
+// 	return SS_PATH + std::to_string(level) + "/";
+// }

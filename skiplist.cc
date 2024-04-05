@@ -25,7 +25,6 @@
                 header->forward[i] = tailer;
         }
         number = 0;
-        MAX_SIZE = 408;
     }
 
     int SkipList::random_level(){
@@ -90,6 +89,14 @@
         }
         x = x->forward[0];
         while (x->key <= key2){
+            res[x->key] = x->value;
+            x = x->forward[0];
+        }
+    }
+
+    void SkipList::getAll(std::map<uint64_t, std::string> &res){
+        Node* x = header->forward[0];
+        while (x != tailer){
             res[x->key] = x->value;
             x = x->forward[0];
         }

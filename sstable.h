@@ -8,37 +8,51 @@
 #include "skiplist.h"
 #include "utils.h"
 
-uint64_t TIMESTAMP = 1;
-
 class Header
 {
+
+public:
     uint64_t timeStamp;
     uint64_t kvNum;
     uint64_t minKey;
     uint64_t maxKey;
 
-public:
     Header(uint64_t t = 0, uint64_t n = 0, uint64_t min = 0, uint64_t max = 0) 
         : timeStamp(t), kvNum(n), minKey(min), maxKey(max) {}
+    bool inArea(uint64_t key) {
+        return key >= minKey && key <= maxKey;
+    }
+    bool before(uint64_t time) {
+        return time > timeStamp;
+    }
 };
 
 class DataBlock
 {
-    uint64_t key;
-    std::string value;
-    uint64_t offset;
+
 public:
-    DataBlock(uint64_t k, std::string v, uint64_t o) : key(k), value(v), offset(o) {}
+    uint64_t key;
+    uint64_t offset;
+    uint32_t vlen;
+
+    DataBlock() {}
+    DataBlock(uint64_t k, uint64_t o, uint32_t v) : key(k), offset(o), vlen(v) {}
+};
+
+struct Info{
+    Header header;
+    BloomFilter bloomFilter;
+    std::vector<uint64_t> indexes;
 };
 
 class SSTable
 {
-    Header header;
-    BloomFilter bloomFilter;
+public:
+    Info info;
     std::vector<DataBlock> data;
 
-public:
-    SSTable(SkipList* list);
+    SSTable(SkipList* list, uint64_t timestamp, std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets);
+    void write2file(const std::string &path);
 
 };
 
