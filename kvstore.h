@@ -21,6 +21,7 @@ private:
 	VLog* vLog;
 	std::string DIR_PATH;
 	std::string SS_PATH;
+	std::string VLOG_PATH;
 
 	std::string filePath(uint64_t level, uint64_t timestamp);
 	std::string dirName(uint64_t level);
@@ -44,9 +45,13 @@ public:
 
 	void gc(uint64_t chunk_size) override;
 
+	void pushMem2ss();
+
 	void write2ss(std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets);
 
 	void createLevel(uint64_t level);
 
 	std::string readData(uint64_t level, uint64_t time_stamp, uint64_t pos);
+
+	std::string readDataTest(uint64_t level, uint64_t time_stamp, uint64_t pos);
 };

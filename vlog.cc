@@ -38,8 +38,25 @@ VLog::VLog(const std::string &dir) {
             }
             
             if (buffer == 0xff) {
-                tail = lseek(fd, -1, SEEK_CUR);
-                break;
+                // 进行crc校验，如果通过则magic位置为tail位置，否则从现在的magic开始寻找下一个magic，直到校验通过
+                uint16_t checkSum;
+                read(fd, &checkSum, sizeof(checkSum));
+                uint64_t key;
+                read(fd, &key, sizeof(key));
+                uint32_t len;
+                read(fd, &len, sizeof(len));
+                std::string value = std::string(len, 0);
+                read(fd, &value[0], len);
+                std::vector<unsigned char> data = std::vector<unsigned char>(sizeof(key) + sizeof(len) + len);
+                memcpy(data.data(), &key, sizeof(key));
+                memcpy(data.data() + sizeof(key), &len, sizeof(len));
+                memcpy(data.data() + sizeof(key) + sizeof(len), value.c_str(), len);
+                uint16_t crc = utils::crc16(data);
+
+                tail = lseek(fd, -sizeof(uint16_t) - sizeof(uint64_t) - sizeof(uint32_t) - len, SEEK_CUR);
+                if (crc == checkSum) {
+                    break;
+                }
             }
             
         }
@@ -88,7 +105,6 @@ std::string VLog::get(uint64_t offset, uint32_t vlen){
         read(fd, &magic, sizeof(magic));
         if (magic != MAGIC) {
             close(fd);
-            // return "";
             return "222222";
         }
 
@@ -111,7 +127,6 @@ std::string VLog::get(uint64_t offset, uint32_t vlen){
 
         if (crc != checkSum) {
             close(fd);
-            // return "";
             return std::to_string(magic) + " " + std::to_string(checkSum) + " " + std::to_string(key) + " " + std::to_string(len) + " " + value;
         }
 

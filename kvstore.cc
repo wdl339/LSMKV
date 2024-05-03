@@ -6,6 +6,8 @@
 #include <fstream>
 
 bool searchIndex(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos);
+bool searchIndexBigger(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos);
+bool searchIndexSmaller(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos);
 
 KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(dir, vlog)
 {
@@ -14,6 +16,7 @@ KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(d
 	vLog = new VLog(vlog);
 	DIR_PATH = dir + "/";
 	SS_PATH = dir + "/level-";
+	VLOG_PATH = vlog;
 
 	// 检查现有数据并恢复
 	uint64_t maxTimeStamp = 0;
@@ -36,6 +39,7 @@ KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(d
 
 KVStore::~KVStore()
 {
+	pushMem2ss();
 	delete memtable;
 	delete vLog;
 }
@@ -47,11 +51,7 @@ KVStore::~KVStore()
 void KVStore::put(uint64_t key, const std::string &s)
 {
 	if (!memtable->put(key, s)){
-		std::map<uint64_t, std::string> all;
-		std::map<uint64_t, uint64_t> offsets;
-		memtable->getAll(all);
-		vLog->append(all,offsets);
-		write2ss(all,offsets);
+		pushMem2ss();
 	}
 }
 
@@ -115,7 +115,21 @@ bool KVStore::del(uint64_t key)
  */
 void KVStore::reset()
 {
+	for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
+		for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
+			std::string file = filePath(it->first, it2->first);
+			utils::rmfile(file);
+		}
+		if (utils::dirExists(dirName(it->first)))
+			utils::rmdir(dirName(it->first));
+	}
 
+	utils::rmfile(VLOG_PATH);
+
+	ssInfo.clear();
+	TIMESTAMP = 1;
+	delete memtable;
+	memtable = new SkipList();
 }
 
 /**
@@ -128,40 +142,47 @@ void KVStore::reset()
 void KVStore::scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string>> &list)
 {
 	std::map<uint64_t, std::string> res;
-	if (!memtable->areaNotCross(key1, key2)){
-		memtable->scan(key1, key2, res);
-	}
-	std::map<uint64_t, uint64_t> record;
+	std::map<uint64_t, std::pair<uint64_t, uint64_t>> record; // key, timestamp, pos
 	for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
 		for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
 			auto info = it2->second;
 			if (info.header.areaNotCross(key1, key2)){
 				continue;
 			}
-			uint64_t pos1, pos2;
-			if (info.header.inArea(key1)){
-				searchIndex(key1, info.indexes, pos1);
-			} else {
-				pos1 = 0;
-			}
-			if (info.header.inArea(key2)){
-				searchIndex(key2, info.indexes, pos2);
-			} else {
-				pos2 = info.indexes.size() - 1;
-			}
-			for (uint64_t i = pos1; i <= pos2; i++){
+			for (int i = 0; i < info.indexes.size(); i++){
 				uint64_t key = info.indexes[i];
-				record[key] = it2->first;
-			}	
+				if (key >= key1 && key <= key2){
+					record[key] = std::make_pair(it2->first, i);
+				}
+			}
+			// uint64_t pos1, pos2;
+			// if (info.header.inArea(key1)){
+			// 	searchIndexBigger(key1, info.indexes, pos1);
+			// } else {
+			// 	pos1 = 0;
+			// }
+			// if (info.header.inArea(key2)){
+			// 	searchIndexSmaller(key2, info.indexes, pos2);
+			// } else {
+			// 	pos2 = info.indexes.size() - 1;
+			// }
+			// for (uint64_t i = pos1; i <= pos2; i++){
+			// 	uint64_t key = info.indexes[i];
+			// 	record[key] = std::make_pair(it2->first, i);
+			// }	
 		}
 	}
 	for (auto it = record.begin(); it != record.end(); it++){
 		uint64_t key = it->first;
-		uint64_t timestamp = it->second;
-		std::string tmp = readData(0, timestamp, key);
+		uint64_t timestamp = it->second.first;
+		uint64_t pos = it->second.second;
+		std::string tmp = readData(0, timestamp, pos);
 		if (tmp != ""){
 			res[key] = tmp;
 		}
+	}
+	if (!memtable->areaNotCross(key1, key2)){
+		memtable->scan(key1, key2, res);
 	}
 	for (auto it = res.begin(); it != res.end(); it++){
 		if (it->second == DFLAG){
@@ -178,6 +199,17 @@ void KVStore::scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, s
 void KVStore::gc(uint64_t chunk_size)
 {
 
+}
+
+void KVStore::pushMem2ss(){
+	if (memtable->size() == 0){
+		return;
+	}
+	std::map<uint64_t, std::string> all;
+	std::map<uint64_t, uint64_t> offsets;
+	memtable->getAll(all);
+	vLog->append(all, offsets);
+	write2ss(all, offsets);
 }
 
 void KVStore::write2ss (std::map<uint64_t, std::string> &all, 
@@ -198,6 +230,28 @@ void KVStore::createLevel(uint64_t level){
 	utils::_mkdir(dirName(level));
 }
 
+std::string KVStore::readData (uint64_t level,
+                               uint64_t time_stamp,
+                               uint64_t pos) {
+    std::string file = filePath(level, time_stamp);
+    std::fstream f;
+    f.open(file, std::ios::in | std::ios::binary);
+
+    uint64_t offsetPos = pos * sizeData + sizeHeader + sizeFliter + sizeof(uint64_t);
+	f.seekg(offsetPos, std::ios::beg);
+
+    uint64_t offset;
+    f.read(reinterpret_cast<char*>(&offset), sizeof(offset));
+    uint32_t vlen;
+    f.read(reinterpret_cast<char*>(&vlen), sizeof(vlen));
+
+	if (vlen == 0){
+		return DFLAG;
+	}
+
+    return vLog->get(offset, vlen);
+}
+
 bool searchIndex(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos) {
 	// 二分法查找
 	int left = 0, right = indexes.size() - 1;
@@ -215,28 +269,48 @@ bool searchIndex(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos) {
 	return false;
 }
 
-std::string KVStore::readData (uint64_t level,
-                               uint64_t time_stamp,
-                               uint64_t pos) {
-    std::string file = filePath(level, time_stamp);
-    std::fstream f;
-    f.open(file, std::ios::in | std::ios::binary);
+bool searchIndexBigger(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos) {
+    // 二分法查找
+    int left = 0, right = indexes.size() - 1;
+    while (left <= right) {
+        int mid = (left + right) / 2;
+        if (indexes[mid] == key) {
+            pos = mid;
+            return true;
+        } else if (indexes[mid] < key) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    // 如果没有找到等于 key 的元素，返回大于且最接近 key 的元素的位置
+    if (left < indexes.size()) {
+        pos = left;
+        return true;
+    }
+    return false;
+}
 
-    uint64_t offsetPos = pos * sizeData + sizeHeader + sizeFliter + sizeof(uint64_t);
-	f.seekg(offsetPos, std::ios::beg);
-
-    uint64_t offset;
-    f.read(reinterpret_cast<char*>(&offset), sizeof(offset));
-    uint32_t vlen;
-    f.read(reinterpret_cast<char*>(&vlen), sizeof(vlen));
-
-	// return std::to_string(offset) + " " + std::to_string(vlen);
-
-	if (vlen == 0){
-		return DFLAG;
-	}
-
-    return vLog->get(offset, vlen);
+bool searchIndexSmaller(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos) {
+    // 二分法查找
+    int left = 0, right = indexes.size() - 1;
+    while (left <= right) {
+        int mid = (left + right) / 2;
+        if (indexes[mid] == key) {
+            pos = mid;
+            return true;
+        } else if (indexes[mid] < key) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    // 如果没有找到等于 key 的元素，返回小于且最接近 key 的元素的位置
+    if (right >= 0) {
+        pos = right;
+        return true;
+    }
+    return false;
 }
 
 std::string KVStore::filePath(uint64_t level, uint64_t timestamp){
