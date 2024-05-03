@@ -18,14 +18,13 @@
         srand(time(NULL)); 
         p = pr;
         level = 1;
-        maxLevel = 16;
+        maxLevel = 20;
         header = new Node (maxLevel, std::numeric_limits<key_type>::min(), "");
         tailer = new Node (maxLevel, std::numeric_limits<key_type>::max(), "");
         for (int i = 0; i < maxLevel; i++){
                 header->forward[i] = tailer;
         }
         number = 0;
-        MAX_SIZE = 408;
     }
 
     int SkipList::random_level(){
@@ -89,7 +88,15 @@
             }
         }
         x = x->forward[0];
-        while (x->key < key2){
+        while (x->key <= key2){
+            res[x->key] = x->value;
+            x = x->forward[0];
+        }
+    }
+
+    void SkipList::getAll(std::map<uint64_t, std::string> &res){
+        Node* x = header->forward[0];
+        while (x != tailer){
             res[x->key] = x->value;
             x = x->forward[0];
         }

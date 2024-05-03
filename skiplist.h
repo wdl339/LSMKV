@@ -32,7 +32,7 @@ public:
 
 class SkipList
 {
-	std::string DFLAG = "~DELETE~";
+	std::string DFLAG = "~DELETED~";
 	int level;
 	int maxLevel;
 	Node* header;
@@ -40,7 +40,7 @@ class SkipList
 	double p;
 
 	uint64_t number;
-	int MAX_SIZE;
+	uint64_t MAX_SIZE = 408;
 
 	int random_level();
 
@@ -50,10 +50,7 @@ public:
 	bool put(key_type key, const value_type &val);
 	std::string get(key_type key) const;
 	void scan(key_type key1, key_type key2, std::map<uint64_t, std::string> &res);
-	void del(key_type key) {
-		put(key, DFLAG);
-	}
-
+	void getAll(std::map<uint64_t, std::string> &res);
 
 	uint64_t size() {
 		return number;
@@ -70,6 +67,10 @@ public:
 		}
 		return x->key;
 	}
+
+	bool areaNotCross(uint64_t min, uint64_t max) {
+        return getMinKey() >= max || getMaxKey() <= min;
+    }
 
 };
 
