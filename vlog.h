@@ -30,11 +30,11 @@ class VLog
     uint64_t head;
     std::string DFLAG = "~DELETED~";
 
+
 public:
     VLog(const std::string &dir);
     void append(std::map<uint64_t, std::string> all, std::map<uint64_t, uint64_t> &offsets);
     std::string get(uint64_t offset, uint32_t vlen);
-    std::string checkCrc(uint64_t offset, uint32_t vlen, int fd, bool &flag);
     
 };
 

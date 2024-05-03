@@ -22,9 +22,11 @@ public:
     bool inArea(uint64_t key) {
         return key >= minKey && key <= maxKey;
     }
+
     bool areaNotCross(uint64_t min, uint64_t max) {
         return minKey >= max || maxKey <= min;
     }
+
     bool before(uint64_t time) {
         return time > timeStamp;
     }

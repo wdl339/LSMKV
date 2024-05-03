@@ -7,9 +7,11 @@ SSTable::SSTable(SkipList* list, uint64_t timestamp, std::map<uint64_t, std::str
     for (auto it = all.begin(); it != all.end(); it++) {
         info.indexes.push_back(it->first);
         uint32_t vlen = it->second.size();
+
         if (it->second == DFLAG) {
             vlen = 0;
         }
+
         data.push_back(DataBlock(it->first, offsets[it->first], vlen));
         info.bloomFilter.insert(it->first);
     }
@@ -28,6 +30,7 @@ SSTable::SSTable(const std::string &path) {
         info.indexes.push_back(tmp.key);
     }
 }
+
 
 void SSTable::write2file(const std::string &path){
     std::ofstream out(path, std::ios::binary);

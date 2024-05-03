@@ -32,9 +32,6 @@ KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(d
 
 	TIMESTAMP = maxTimeStamp + 1;
 
-	// SSTable ss = SSTable(memtable, TIMESTAMP, all, offsets);
-	// std::string path = filePath(0, TIMESTAMP);
-
 }
 
 KVStore::~KVStore()
@@ -102,6 +99,7 @@ std::string KVStore::get(uint64_t key)
  */
 bool KVStore::del(uint64_t key)
 {
+
 	std::string value = get(key);
 	if(value == ""){
 		return false;
@@ -233,6 +231,7 @@ std::string KVStore::readData (uint64_t level,
     f.read(reinterpret_cast<char*>(&vlen), sizeof(vlen));
 
 	// return std::to_string(offset) + " " + std::to_string(vlen);
+
 	if (vlen == 0){
 		return DFLAG;
 	}
