@@ -37,9 +37,9 @@ VLog::VLog(const std::string &dir) {
                 break;
             }
             
-            if (buffer == 0xff) {
+            if (buffer == MAGIC) {
                 tail = lseek(fd, -1, SEEK_CUR);
-                break;
+                
             }
             
         }
@@ -73,24 +73,11 @@ void VLog::append(std::map<uint64_t, std::string> all, std::map<uint64_t, uint64
         close(fd);
 }
 
-std::string VLog::get(uint64_t offset, uint32_t vlen){
-        if (vlen == 0)
-            return "";
-
-        int fd = open(dir.c_str(), O_RDWR, 0644);
-        if (fd < 0)
-        {
-            perror("open");
-            return "";
-        }
-
-        lseek(fd, offset, SEEK_SET);
-        
+std::string VLog::checkCrc(uint64_t offset, uint32_t vlen, int fd, bool &flag){
         uint8_t magic;
         read(fd, &magic, sizeof(magic));
         if (magic != MAGIC) {
-            close(fd);
-            // return "";
+            flag = false;
             return "222222";
         }
 
@@ -112,10 +99,29 @@ std::string VLog::get(uint64_t offset, uint32_t vlen){
         uint16_t crc = utils::crc16(data);
 
         if (crc != checkSum) {
-            close(fd);
-            // return "";
-            return std::to_string(magic) + " " + std::to_string(checkSum) + " " + std::to_string(key) + " " + std::to_string(len) + " " + value;
+            flag = false;
+            return "111111";
         }
+
+        flag = true;
+        return value;
+}
+
+std::string VLog::get(uint64_t offset, uint32_t vlen){
+        if (vlen == 0)
+            return "";
+
+        int fd = open(dir.c_str(), O_RDWR, 0644);
+        if (fd < 0)
+        {
+            perror("open");
+            return "";
+        }
+
+        lseek(fd, offset, SEEK_SET);
+        
+        bool flag = false;
+        std::string value = checkCrc(offset, vlen, fd, flag);
 
         close(fd);
         return value;
