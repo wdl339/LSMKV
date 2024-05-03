@@ -191,7 +191,8 @@ void KVStore::gc(uint64_t chunk_size)
 		std::string value = it->second.first;
 		uint64_t offset = it->second.second;
 		uint64_t offInSS = getOffInSS(key);
-		if (offInSS == offset){
+		std::string valueInMem = memtable->get(key);
+		if (offInSS == offset && valueInMem == ""){
 			put(key, value);
 		}
 	}
