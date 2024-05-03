@@ -25,8 +25,6 @@ private:
 
 	std::string filePath(uint64_t level, uint64_t timestamp);
 	std::string dirName(uint64_t level);
-	// std::string dirPath(uint64_t level);
-
 
 public:
 	KVStore(const std::string &dir, const std::string &vlog);
@@ -53,5 +51,8 @@ public:
 
 	std::string readData(uint64_t level, uint64_t time_stamp, uint64_t pos);
 
-	std::string readDataTest(uint64_t level, uint64_t time_stamp, uint64_t pos);
+	uint64_t getOffInSS(uint64_t key);
+
+	uint64_t readOffset(uint64_t level, uint64_t time_stamp, uint64_t pos);
+
 };

@@ -105,7 +105,7 @@ std::string VLog::get(uint64_t offset, uint32_t vlen){
         read(fd, &magic, sizeof(magic));
         if (magic != MAGIC) {
             close(fd);
-            return "222222";
+            return "magic error";
         }
 
         uint16_t checkSum;
@@ -130,7 +130,61 @@ std::string VLog::get(uint64_t offset, uint32_t vlen){
             return std::to_string(magic) + " " + std::to_string(checkSum) + " " + std::to_string(key) + " " + std::to_string(len) + " " + value;
         }
 
-
         close(fd);
         return value;
 }
+
+void VLog::gc(std::map<uint64_t, std::pair<std::string, uint64_t>> &kVOff, uint64_t chunk_size, uint64_t &holeOff, uint64_t &len){
+        int fd = open(dir.c_str(), O_RDWR, 0644);
+        if (fd < 0)
+        {
+            perror("open");
+            return;
+        }
+
+        lseek(fd, tail, SEEK_SET);
+        uint64_t offset = tail;
+        uint64_t oldOffset = tail;
+        uint64_t total_size = 0;
+        while (total_size < chunk_size && offset < head)
+        {
+            oldOffset = offset;
+            uint8_t magic;
+            read(fd, &magic, sizeof(magic));
+            if (magic != MAGIC) {
+                break;
+            }
+
+            uint16_t checkSum;
+            read(fd, &checkSum, sizeof(checkSum));
+
+            uint64_t key;
+            read(fd, &key, sizeof(key));
+            uint32_t len;
+            read(fd, &len, sizeof(len));
+
+            std::string value = std::string(len, 0);
+            read(fd, &value[0], len);
+            
+            std::vector<unsigned char> data = std::vector<unsigned char>(sizeof(key) + sizeof(len) + len);
+            memcpy(data.data(), &key, sizeof(key));
+            memcpy(data.data() + sizeof(key), &len, sizeof(len));
+            memcpy(data.data() + sizeof(key) + sizeof(len), value.c_str(), len);
+            uint16_t crc = utils::crc16(data);
+
+            offset = lseek(fd, 0, SEEK_CUR);
+
+            if (crc != checkSum) {
+                continue;
+            }
+
+            total_size += (sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint64_t) + sizeof(uint32_t) + len);
+
+            kVOff[key] = std::make_pair(value, oldOffset);
+        }
+
+        holeOff = tail;
+        tail = offset;
+        len = total_size;
+        close(fd);
+    }
