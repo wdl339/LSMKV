@@ -17,6 +17,20 @@ SSTable::SSTable(SkipList* list, uint64_t timestamp, std::map<uint64_t, std::str
     }
 }
 
+SSTable::SSTable(uint64_t timestamp, 
+                uint64_t size,
+                uint64_t minKey,
+                uint64_t maxKey,
+                std::vector<DataBlock> &all) {
+    info.header = Header(timestamp, size, minKey, maxKey);
+    info.bloomFilter = BloomFilter();
+    for (auto it = all.begin(); it != all.end(); it++) {
+        info.indexes.push_back(it->key);
+        data.push_back(DataBlock(it->key, it->offset, it->vlen));
+        info.bloomFilter.insert(it->key);
+    }
+}
+
 SSTable::SSTable(const std::string &path) {
     std::ifstream in(path, std::ios::binary);
     in.read((char*)&(info.header), sizeof(Header));

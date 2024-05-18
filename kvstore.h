@@ -9,22 +9,45 @@ class KVStore : public KVStoreAPI
 {
 
 private:
+	struct CacheSS{
+		SSTable* ssCache;
+		uint64_t level;
+		uint64_t time_stamp;
+		uint64_t tag;
+		CacheSS(SSTable* ss, uint64_t l, uint64_t t, uint64_t ta) : ssCache(ss), level(l), time_stamp(t), tag(ta) {}
+	};
 
 	uint64_t TIMESTAMP = 1;
 	std::string DFLAG = "~DELETED~";
 	uint64_t sizeHeader = 32;
 	uint64_t sizeData = sizeof(uint64_t) * 2 + sizeof(uint32_t); 
 	uint64_t sizeFliter = 1024 * 8;
+	uint64_t DataBlockNum = 408;
 
-	std::map<uint64_t, std::map<uint64_t, Info>> ssInfo; // level, timestamp, Info
+	std::map<uint64_t, std::map<std::pair<uint64_t, uint64_t>, Info>> ssInfo; // level, {timestamp, tag}, Info
+	std::map<uint64_t, uint64_t> maxTag; // timestamp, tag
 	SkipList* memtable;
 	VLog* vLog;
+	CacheSS* cacheSS;
 	std::string DIR_PATH;
 	std::string SS_PATH;
 	std::string VLOG_PATH;
 
-	std::string filePath(uint64_t level, uint64_t timestamp);
+	void pushMem2ss();
+	void write2ss(std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets);
+
+	std::string readData(uint64_t level, uint64_t time_stamp, uint64_t tag, uint64_t pos);
+
+	uint64_t getOffInSS(uint64_t key);
+	uint64_t readOffset(uint64_t level, uint64_t time_stamp, uint64_t tag, uint64_t pos);
+
+	void compact();
+
+	uint64_t maxFileNumInLevel(uint64_t level);
+	void createLevel(uint64_t level);
+	std::string filePath(uint64_t level, uint64_t timestamp, uint64_t tag);
 	std::string dirName(uint64_t level);
+	void getInfoInFileName(std::string fileName, uint64_t &timeStamp, uint64_t &tag);
 
 public:
 	KVStore(const std::string &dir, const std::string &vlog);
@@ -42,17 +65,5 @@ public:
 	void scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string>> &list) override;
 
 	void gc(uint64_t chunk_size) override;
-
-	void pushMem2ss();
-
-	void write2ss(std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets);
-
-	void createLevel(uint64_t level);
-
-	std::string readData(uint64_t level, uint64_t time_stamp, uint64_t pos);
-
-	uint64_t getOffInSS(uint64_t key);
-
-	uint64_t readOffset(uint64_t level, uint64_t time_stamp, uint64_t pos);
 
 };

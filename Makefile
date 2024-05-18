@@ -10,5 +10,9 @@ persistence: kvstore.o persistence.o skiplist.o sstable.o vlog.o
 
 clean:
 	-rm -f correctness persistence *.o
-	-rm -f ./data/level-0/* ./data/vlog
-	-rm -rf ./data/level-0 
+	-rm -f ./data/level-*/* ./data/vlog
+	-rm -rf ./data/level-*
+
+data_clean:
+	-rm -f ./data/level-*/* ./data/vlog
+	-rm -rf ./data/level-*
