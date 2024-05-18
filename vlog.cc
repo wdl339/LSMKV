@@ -53,7 +53,7 @@ VLog::VLog(const std::string &dir) {
                 memcpy(data.data() + sizeof(key) + sizeof(len), value.c_str(), len);
                 uint16_t crc = utils::crc16(data);
 
-                tail = lseek(fd, -sizeof(uint16_t) - sizeof(uint64_t) - sizeof(uint32_t) - len, SEEK_CUR);
+                tail = lseek(fd, -sizeof(uint8_t)- sizeof(uint16_t) - sizeof(uint64_t) - sizeof(uint32_t) - len, SEEK_CUR);
                 if (crc == checkSum) {
                     break;
                 }

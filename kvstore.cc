@@ -128,6 +128,8 @@ void KVStore::reset()
 	TIMESTAMP = 1;
 	delete memtable;
 	memtable = new SkipList();
+	delete vLog;
+	vLog = new VLog(VLOG_PATH);
 }
 
 /**

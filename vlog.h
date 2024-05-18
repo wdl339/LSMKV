@@ -33,6 +33,7 @@ class VLog
 
 public:
     VLog(const std::string &dir);
+    ~VLog(){};
     void append(std::map<uint64_t, std::string> all, std::map<uint64_t, uint64_t> &offsets);
     std::string get(uint64_t offset, uint32_t vlen);
     void gc(std::map<uint64_t, std::pair<std::string, uint64_t>> &kVOff, uint64_t chunk_size, uint64_t &holeOff, uint64_t &len);
