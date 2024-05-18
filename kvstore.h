@@ -9,12 +9,12 @@ class KVStore : public KVStoreAPI
 {
 
 private:
-	struct CacheSS{
-		SSTable* ssCache;
+	struct LTT
+	{
 		uint64_t level;
-		uint64_t time_stamp;
+		uint64_t timestamp;
 		uint64_t tag;
-		CacheSS(SSTable* ss, uint64_t l, uint64_t t, uint64_t ta) : ssCache(ss), level(l), time_stamp(t), tag(ta) {}
+		LTT(uint64_t l, uint64_t t, uint64_t g) : level(l), timestamp(t), tag(g) {}
 	};
 
 	uint64_t TIMESTAMP = 1;
@@ -28,7 +28,8 @@ private:
 	std::map<uint64_t, uint64_t> maxTag; // timestamp, tag
 	SkipList* memtable;
 	VLog* vLog;
-	CacheSS* cacheSS;
+	SSTable ssCache;
+	LTT* ltt;
 	std::string DIR_PATH;
 	std::string SS_PATH;
 	std::string VLOG_PATH;

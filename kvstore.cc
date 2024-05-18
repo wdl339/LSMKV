@@ -13,7 +13,7 @@ KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(d
 
 	memtable = new SkipList();
 	vLog = new VLog(vlog);
-	cacheSS = nullptr;
+	ltt = nullptr;
 	DIR_PATH = dir + "/";
 	SS_PATH = dir + "/level-";
 	VLOG_PATH = vlog;
@@ -46,9 +46,7 @@ KVStore::~KVStore()
 	pushMem2ss();
 	delete memtable;
 	delete vLog;
-	if (cacheSS != nullptr){
-		delete cacheSS;
-	}
+	delete ltt;
 }
 
 /**
@@ -137,9 +135,7 @@ void KVStore::reset()
 	memtable = new SkipList();
 	delete vLog;
 	vLog = new VLog(VLOG_PATH);
-	if (cacheSS != nullptr){
-		delete cacheSS;
-	}
+	delete ltt;
 }
 
 struct LTTP{
@@ -278,15 +274,15 @@ std::string KVStore::readData (uint64_t level,
                                uint64_t time_stamp,
 							   uint64_t tag,
                                uint64_t pos) {
-	if (cacheSS != nullptr && cacheSS->level == level && cacheSS->time_stamp == time_stamp && cacheSS->tag == tag){
-		return cacheSS->ssCache->data[pos].vlen == 0 ? DFLAG : vLog->get(cacheSS->ssCache->data[pos].offset, cacheSS->ssCache->data[pos].vlen);
+	if (ltt != nullptr && ltt->level == level && ltt->timestamp == time_stamp && ltt->tag == tag){
+		return ssCache.data[pos].vlen == 0 ? DFLAG : vLog->get(ssCache.data[pos].offset, ssCache.data[pos].vlen);
 	} else {
-		if (cacheSS != nullptr){
-			delete cacheSS;
+		if (ltt != nullptr){
+			delete ltt;
 		}
 		std::string file = filePath(level, time_stamp, tag);
-		SSTable* ss = new SSTable(file);
-		cacheSS = new CacheSS(ss, level, time_stamp, tag);
+		ssCache = SSTable(file);
+		ltt = new LTT(level, time_stamp, tag);
 	}
 	
     std::string file = filePath(level, time_stamp, tag);
@@ -312,6 +308,16 @@ uint64_t KVStore::readOffset (uint64_t level,
                                uint64_t time_stamp,
 							   uint64_t tag,
                                uint64_t pos) {
+	if (ltt != nullptr && ltt->level == level && ltt->timestamp == time_stamp && ltt->tag == tag){
+		return ssCache.data[pos].offset;
+	} else {
+		if (ltt != nullptr){
+			delete ltt;
+		}
+		std::string file = filePath(level, time_stamp, tag);
+		ssCache = SSTable(file);
+		ltt = new LTT(level, time_stamp, tag);
+	}
     std::string file = filePath(level, time_stamp, tag);
     std::fstream f;
     f.open(file, std::ios::in | std::ios::binary);

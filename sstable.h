@@ -60,6 +60,7 @@ public:
     SSTable(SkipList* list, uint64_t timestamp, std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets);
     SSTable(uint64_t timestamp, uint64_t size, uint64_t minKey, uint64_t maxKey, std::vector<DataBlock> &all);
     SSTable(const std::string &path);
+    SSTable() {}
     void write2file(const std::string &path);
 
 };
