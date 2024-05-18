@@ -261,9 +261,9 @@ void KVStore::write2ss (std::map<uint64_t, std::string> &all,
 	std::string path = filePath(0, TIMESTAMP, 1);
 	ss.write2file(path);
 	ssInfo[0][{TIMESTAMP, 1}] = ss.info;
-	// if (ssInfo[0].size() > maxFileNumInLevel(0)){
-	// 	compact();
-	// }
+	if (ssInfo[0].size() > maxFileNumInLevel(0)){
+		compact();
+	}
 	maxTag[TIMESTAMP] = 1;
 	TIMESTAMP++;
 	delete memtable;
@@ -397,21 +397,21 @@ void KVStore::compact(){
 			needToMerge.push_back(it->first);
 		}
 
-		printf("needToMerge.size() = %d\n", needToMerge.size());
+		// printf("needToMerge.size() = %d\n", needToMerge.size());
 
 		// 使用归并排序，将以上所有涉及到的ssTable文件进行合并，并将结果每16个kB(408个datablock)分成一个新的ssTable文件（最后一个可不足16kB），写入到下一层中
 		// 合并时，新ssTable文件的时间戳为原ssTable文件的时间戳最大值,因此生成的多个ssTable时间戳可能相同，需要用tag区分
 		std::vector<SSTable> sstables;
 		for(auto it = needToMerge.begin(); it != needToMerge.end(); it++){
-			SSTable ss = SSTable(dirName(curLevel + 1) + "/" + filePath(curLevel + 1, it->first, it->second));
+			SSTable ss = SSTable(filePath(curLevel + 1, it->first, it->second));
 			sstables.push_back(ss);
 		}
 		for (auto it = needToCompact.begin(); it != needToCompact.end(); it++){
-			SSTable ss = SSTable(dirName(curLevel) + "/" + filePath(curLevel, it->first, it->second));
+			SSTable ss = SSTable(filePath(curLevel, it->first, it->second));
 			sstables.push_back(ss);
 		}
 
-		printf("sstables.size() = %d\n", sstables.size());
+		// printf("sstables.size() = %d\n", sstables.size());
 
 		std::map<uint64_t, std::pair<uint64_t, DataBlock>> all; // key, {timestamp, DataBlock}
 		for (auto it = sstables.begin(); it != sstables.end(); it++){
@@ -434,7 +434,7 @@ void KVStore::compact(){
 			}
 		}
 
-		printf("all.size() = %d\n", all.size());
+		// printf("all.size() = %d\n", all.size());
 
 		while (all.size() > 0){
 			std::vector<DataBlock> data;
@@ -443,13 +443,15 @@ void KVStore::compact(){
 			uint64_t minKey = it->first;
 			uint64_t maxKey = it->first;
 			uint64_t maxTimeStamp = it->second.first;
-			for (; it != all.end(), size < DataBlockNum; it++, size++){
+			for (; it != all.end(), size < DataBlockNum; size++){
 				data.push_back(it->second.second);
 				maxKey = it->first;
 				if (it->second.first > maxTimeStamp){
 					maxTimeStamp = it->second.first;
 				}
-				all.erase(it);
+				auto toErase = it;
+				++it;
+				all.erase(toErase);
 			}
 			SSTable ss = SSTable(maxTimeStamp, size, minKey, maxKey, data);
 			uint64_t tag = maxTag[maxTimeStamp] + 1;
@@ -459,7 +461,7 @@ void KVStore::compact(){
 			maxTag[maxTimeStamp] = tag;
 		}
 
-		printf("all.size() = %d\n", all.size());
+		// printf("all.size() = %d\n", all.size());
 
 		// 完成合并后，删除原来的ssTable文件，更新ssInfo
 		for (auto it = needToCompact.begin(); it != needToCompact.end(); it++){
