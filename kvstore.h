@@ -49,6 +49,7 @@ private:
 	std::string filePath(uint64_t level, uint64_t timestamp, uint64_t tag);
 	std::string dirName(uint64_t level);
 	void getInfoInFileName(std::string fileName, uint64_t &timeStamp, uint64_t &tag);
+	uint64_t getMaxLevel();
 
 public:
 	KVStore(const std::string &dir, const std::string &vlog);

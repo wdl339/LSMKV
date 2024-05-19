@@ -44,9 +44,15 @@ KVStore::KVStore(const std::string &dir, const std::string &vlog) : KVStoreAPI(d
 KVStore::~KVStore()
 {
 	pushMem2ss();
-	delete memtable;
-	delete vLog;
-	delete ltt;
+	if (ltt != nullptr){
+		delete ltt;
+	}
+	if (memtable != nullptr){
+		delete memtable;
+	}
+	if (vLog != nullptr){
+		delete vLog;
+	}
 }
 
 /**
@@ -75,7 +81,7 @@ std::string KVStore::get(uint64_t key)
 		for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
 			for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
 				auto info = it2->second;
-				if (!info.header.inArea(key) || info.header.before(tmp_timestamp)){
+				if (!info.header.inArea(key) || info.header.notAfter(tmp_timestamp)){
 					continue;
 				}
 				if (info.bloomFilter.contains(key)){
@@ -131,11 +137,17 @@ void KVStore::reset()
 
 	ssInfo.clear();
 	TIMESTAMP = 1;
-	delete memtable;
+	if (ltt != nullptr){
+		delete ltt;
+	}
+	if (memtable != nullptr){
+		delete memtable;
+	}
 	memtable = new SkipList();
-	delete vLog;
+	if (vLog != nullptr){
+		delete vLog;
+	}
 	vLog = new VLog(VLOG_PATH);
-	delete ltt;
 }
 
 struct LTTP{
@@ -226,7 +238,7 @@ uint64_t KVStore::getOffInSS(uint64_t key){
 	for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
 			for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
 				auto info = it2->second;
-				if (!info.header.inArea(key) || info.header.before(tmp_timestamp)){
+				if (!info.header.inArea(key) || info.header.notAfter(tmp_timestamp)){
 					continue;
 				}
 				if (info.bloomFilter.contains(key)){
@@ -261,13 +273,15 @@ void KVStore::write2ss (std::map<uint64_t, std::string> &all,
 	std::string path = filePath(0, TIMESTAMP, 1);
 	ss.write2file(path);
 	ssInfo[0][{TIMESTAMP, 1}] = ss.info;
+	maxTag[TIMESTAMP] = 1;
+	TIMESTAMP++;
+	if (memtable != nullptr){
+		delete memtable;
+	}
+	memtable = new SkipList();
 	if (ssInfo[0].size() > maxFileNumInLevel(0)){
 		compact();
 	}
-	maxTag[TIMESTAMP] = 1;
-	TIMESTAMP++;
-	delete memtable;
-	memtable = new SkipList();
 }
 
 std::string KVStore::readData (uint64_t level,
@@ -318,6 +332,7 @@ uint64_t KVStore::readOffset (uint64_t level,
 		ssCache = SSTable(file);
 		ltt = new LTT(level, time_stamp, tag);
 	}
+
     std::string file = filePath(level, time_stamp, tag);
     std::fstream f;
     f.open(file, std::ios::in | std::ios::binary);
@@ -338,7 +353,7 @@ struct TTMM{
 };
 
 void KVStore::compact(){
-	int curLevel = 0;
+	uint64_t curLevel = 0;
 
 	while(ssInfo[curLevel].size() > maxFileNumInLevel(curLevel)){
 		std::vector<std::pair<uint64_t, uint64_t>> needToCompact;
@@ -387,6 +402,11 @@ void KVStore::compact(){
 			createLevel(curLevel + 1);
 		}
 
+		bool mergeToMaxLevel = false;
+		if (curLevel + 1 == getMaxLevel()){
+			mergeToMaxLevel = true;
+		}
+
 		// 在下一层中找到与此区间有交集的ssTable文件
 		std::vector<std::pair<uint64_t, uint64_t>> needToMerge;
 		for (auto it = ssInfo[curLevel + 1].begin(); it != ssInfo[curLevel + 1].end(); it++){
@@ -420,12 +440,12 @@ void KVStore::compact(){
 				// 遇到相同key，选择时间戳最大的
 				uint64_t key = it2->key;
 				if (all.find(key) == all.end()){
-					if (it2->vlen == 0){
+					if (it2->vlen == 0 && mergeToMaxLevel){
 						continue;
 					}
 					all[key] = {timestamp, *it2};
-				} else if (timestamp > all[key].first){
-					if (it2->vlen == 0){
+				} else if (timestamp >= all[key].first){
+					if (it2->vlen == 0 && mergeToMaxLevel){
 						all.erase(key);
 					} else {
 						all[key] = {timestamp, *it2};
@@ -440,12 +460,15 @@ void KVStore::compact(){
 			std::vector<DataBlock> data;
 			uint64_t size = 0;
 			auto it = all.begin();
-			uint64_t minKey = it->first;
-			uint64_t maxKey = it->first;
+			uint64_t maxKey = 0, minKey = UINT64_MAX;
 			uint64_t maxTimeStamp = it->second.first;
-			for (; it != all.end(), size < DataBlockNum; size++){
+			for (; it != all.end() && size < DataBlockNum && all.size() > 0; size++){
 				data.push_back(it->second.second);
-				maxKey = it->first;
+				if (it->first < minKey){
+					minKey = it->first;
+				} else if (it->first > maxKey){
+					maxKey = it->first;
+				}
 				if (it->second.first > maxTimeStamp){
 					maxTimeStamp = it->second.first;
 				}
@@ -453,6 +476,7 @@ void KVStore::compact(){
 				++it;
 				all.erase(toErase);
 			}
+			// printf("size = %d\n", size);
 			SSTable ss = SSTable(maxTimeStamp, size, minKey, maxKey, data);
 			uint64_t tag = maxTag[maxTimeStamp] + 1;
 			std::string path = filePath(curLevel + 1, maxTimeStamp, tag);
@@ -468,6 +492,12 @@ void KVStore::compact(){
 			std::string file = filePath(curLevel, it->first, it->second);
 			utils::rmfile(file);
 			ssInfo[curLevel].erase(*it);
+		}
+
+		for (auto it = needToMerge.begin(); it != needToMerge.end(); it++){
+			std::string file = filePath(curLevel + 1, it->first, it->second);
+			utils::rmfile(file);
+			ssInfo[curLevel + 1].erase(*it);
 		}
 
 		curLevel++;
@@ -515,4 +545,12 @@ void KVStore::getInfoInFileName(std::string fileName, uint64_t &timeStamp, uint6
 	std::string tmp = fileName.substr(fileName.find_last_of("/") + 1);
 	timeStamp = std::stoull(tmp.substr(0, tmp.find_first_of("_")));
 	tag = std::stoull(tmp.substr(tmp.find_first_of("_") + 1, tmp.find_last_of(".")));
+}
+
+uint64_t KVStore::getMaxLevel(){
+	uint64_t res = 0;
+	while (utils::dirExists(dirName(res))){
+		res++;
+	}
+	return res;
 }

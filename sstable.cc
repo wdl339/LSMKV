@@ -1,7 +1,10 @@
 #include "sstable.h"
 #include <fstream>
 
-SSTable::SSTable(SkipList* list, uint64_t timestamp, std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets) {
+SSTable::SSTable(SkipList* list, 
+                uint64_t timestamp, 
+                std::map<uint64_t, std::string> &all, 
+                std::map<uint64_t, uint64_t> &offsets) {
     info.header = Header(timestamp, list->size(), list->getMinKey(), list->getMaxKey());
     info.bloomFilter = BloomFilter();
     for (auto it = all.begin(); it != all.end(); it++) {

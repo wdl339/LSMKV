@@ -30,6 +30,10 @@ public:
     bool before(uint64_t time) {
         return time > timeStamp;
     }
+
+    bool notAfter(uint64_t time) {
+        return time >= timeStamp;
+    }
 };
 
 class DataBlock
