@@ -19,12 +19,9 @@ public:
 
     Header(uint64_t t = 0, uint64_t n = 0, uint64_t min = 0, uint64_t max = 0) 
         : timeStamp(t), kvNum(n), minKey(min), maxKey(max) {}
-    bool inArea(uint64_t key) {
-        return key >= minKey && key <= maxKey;
-    }
 
     bool areaNotCross(uint64_t min, uint64_t max) {
-        return minKey >= max || maxKey <= min;
+        return minKey > max || maxKey < min;
     }
 
     bool before(uint64_t time) {
@@ -62,7 +59,7 @@ public:
     std::string DFLAG = "~DELETED~";
 
     SSTable(SkipList* list, uint64_t timestamp, std::map<uint64_t, std::string> &all, std::map<uint64_t, uint64_t> &offsets);
-    SSTable(uint64_t timestamp, uint64_t size, uint64_t minKey, uint64_t maxKey, std::vector<DataBlock> &all);
+    SSTable(uint64_t timestamp, uint64_t size, std::vector<DataBlock> &all);
     SSTable(const std::string &path);
     SSTable() {}
     void write2file(const std::string &path);

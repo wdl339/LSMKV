@@ -22,9 +22,18 @@ SSTable::SSTable(SkipList* list,
 
 SSTable::SSTable(uint64_t timestamp, 
                 uint64_t size,
-                uint64_t minKey,
-                uint64_t maxKey,
                 std::vector<DataBlock> &all) {
+    // 遍历all找到最大值和最小值
+    uint64_t minKey = all[0].key;
+    uint64_t maxKey = all[0].key;
+    for (auto it = all.begin(); it != all.end(); it++) {
+        if (it->key < minKey) {
+            minKey = it->key;
+        }
+        if (it->key > maxKey) {
+            maxKey = it->key;
+        }
+    }
     info.header = Header(timestamp, size, minKey, maxKey);
     info.bloomFilter = BloomFilter();
     for (auto it = all.begin(); it != all.end(); it++) {

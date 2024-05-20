@@ -26,10 +26,16 @@ private:
 
 	std::map<uint64_t, std::map<std::pair<uint64_t, uint64_t>, Info>> ssInfo; // level, {timestamp, tag}, Info
 	std::map<uint64_t, uint64_t> maxTag; // timestamp, tag
+
+	uint64_t curLevel;
+	std::map<uint64_t, std::pair<uint64_t, DataBlock>> compactCache; // key, {timestamp, DataBlock}
+
 	SkipList* memtable;
 	VLog* vLog;
+
 	SSTable ssCache;
 	LTT* ltt;
+
 	std::string DIR_PATH;
 	std::string SS_PATH;
 	std::string VLOG_PATH;

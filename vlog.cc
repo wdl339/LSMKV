@@ -104,6 +104,7 @@ std::string VLog::get(uint64_t offset, uint32_t vlen){
         uint8_t magic;
         read(fd, &magic, sizeof(magic));
         if (magic != MAGIC) {
+            printf("magic: %d\n, offset: %d\n, vlen: %d\n", magic, offset, vlen);
             close(fd);
             return "magic error";
         }
