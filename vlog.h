@@ -25,6 +25,9 @@ public:
 
 class VLog
 {
+
+    friend class Entry;
+
     std::string dir;
     uint64_t tail;
     uint64_t head;

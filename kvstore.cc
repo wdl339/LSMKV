@@ -72,8 +72,6 @@ void KVStore::put(uint64_t key, const std::string &s)
  * Returns the (string) value of the given key.
  * An empty string indicates not found.
  */
-
-// std::map<uint64_t, std::map<std::pair<uint64_t, uint64_t>, Info>> ssInfo; // level, {timestamp, tag}, Info
 std::string KVStore::get(uint64_t key)
 {
 	std::string res = memtable->get(key);
@@ -83,13 +81,14 @@ std::string KVStore::get(uint64_t key)
 		for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
 			for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
 				auto info = it2->second;
-				if (info.header.before(tmp_timestamp)){
+				if (info.header.notAfter(tmp_timestamp)){
 					continue;
 				}
 				if (info.bloomFilter.contains(key)){
 					uint64_t pos;
 					if (searchIndex(key, info.indexes, pos)){
 						tmp = readData(it->first, (it2->first).first, (it2->first).second, pos);
+						// tmp = readDataForNoCache(it->first, (it2->first).first, (it2->first).second,key);
 						if (tmp != ""){
 							res = tmp;
 							tmp_timestamp = (it2->first).first;
@@ -104,6 +103,7 @@ std::string KVStore::get(uint64_t key)
 	}
 	return res;
 }
+
 /**
  * Delete the given key-value pair if it exists.
  * Returns false iff the key is not found.
@@ -165,8 +165,6 @@ struct LTTP{
  * keys in the list should be in an ascending order.
  * An empty string indicates not found.
  */
-
-// std::map<uint64_t, std::map<std::pair<uint64_t, uint64_t>, Info>> ssInfo; // level, {timestamp, tag}, Info
 void KVStore::scan(uint64_t key1, uint64_t key2, std::list<std::pair<uint64_t, std::string>> &list)
 {
 	std::map<uint64_t, std::string> res;
@@ -241,7 +239,7 @@ uint64_t KVStore::getOffInSS(uint64_t key){
 	for (auto it = ssInfo.begin(); it != ssInfo.end(); it++){
 			for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++){
 				auto info = it2->second;
-				if (info.header.before(tmp_timestamp)){
+				if (info.header.notAfter(tmp_timestamp)){
 					continue;
 				}
 				if (info.bloomFilter.contains(key)){
@@ -359,6 +357,7 @@ struct TTMM{
 };
 
 void KVStore::compact(){
+	ltt = nullptr;
 
 	while(ssInfo[curLevel].size() > maxFileNumInLevel(curLevel)){
 		std::vector<std::pair<uint64_t, uint64_t>> needToCompact;
@@ -424,7 +423,7 @@ void KVStore::compact(){
 
 		// printf("needToMerge.size() = %d\n", needToMerge.size());
 
-		// 使用归并排序，将以上所有涉及到的ssTable文件进行合并，并将结果每16个kB(408个datablock)分成一个新的ssTable文件（最后一个可不足16kB），写入到下一层中
+		// 排序，将以上所有涉及到的ssTable文件进行合并，并将结果每16个kB(408个datablock)分成一个新的ssTable文件（最后一个可不足16kB），写入到下一层中
 		// 合并时，新ssTable文件的时间戳为原ssTable文件的时间戳最大值,因此生成的多个ssTable时间戳可能相同，需要用tag区分
 		std::vector<SSTable> sstables;
 		for (auto it = needToCompact.begin(); it != needToCompact.end(); it++){
@@ -500,6 +499,29 @@ void KVStore::compact(){
 
 		curLevel++;
 	}
+}
+
+std::string KVStore::readDataForNoCache (uint64_t level,
+                               uint64_t time_stamp,
+							   uint64_t tag,
+								uint64_t key) {
+	
+    std::string file = filePath(level, time_stamp, tag);
+	SSTable ss = SSTable(file);
+
+	std::vector <uint64_t> indexes = ss.info.indexes;
+	uint64_t pos;
+	searchIndex(key, indexes, pos);
+
+    DataBlock db = ss.data[pos];
+	uint64_t offset = db.offset;
+	uint32_t vlen = db.vlen;
+
+	if (vlen == 0){
+		return DFLAG;
+	}
+
+    return vLog->get(offset, vlen);
 }
 
 bool searchIndex(uint64_t key, std::vector<uint64_t> &indexes, uint64_t &pos) {
