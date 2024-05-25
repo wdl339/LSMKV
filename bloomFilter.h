@@ -1,7 +1,7 @@
 #include "MurmurHash3.h"
 
 #define HASH_NUM 4
-#define HASH_SIZE (1024 * 8)
+#define HASH_SIZE 8192
 
 class BloomFilter 
 {
